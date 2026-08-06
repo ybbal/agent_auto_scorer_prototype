@@ -1,0 +1,32 @@
+[Unit]
+Description=Auto Value Telegram Agent
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=auto-value-agent
+Group=auto-value-agent
+WorkingDirectory=/opt/auto-value-agent
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=STATE_DB_PATH=/var/lib/auto-value-agent/agent.db
+Environment=LOG_FILE_PATH=/var/log/auto-value-agent/agent.log
+Environment=SCORE_CSV_PATH=/opt/auto-value-agent/resources/sample_scores_table_auto_349653.csv
+Environment=FEATURE_MAPPING_PATH=/opt/auto-value-agent/resources/feature_mappings.json
+ExecStart=/opt/auto-value-agent/.venv/bin/auto-value-agent telegram
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/auto-value-agent /var/log/auto-value-agent
+
+[Install]
+WantedBy=multi-user.target
