@@ -16,8 +16,8 @@ from telegram import (
     MenuButtonCommands,
     Update,
 )
-from telegram.constants import ChatAction
-from telegram.error import TelegramError
+from telegram.constants import ChatAction, ParseMode
+from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -29,6 +29,7 @@ from telegram.ext import (
 
 from auto_value_agent.domain import ActionId, ConsultationResponse, Intent
 from auto_value_agent.service import ConsultationService, NoVehicleSelectedError
+from auto_value_agent.telegram_markdown import render_telegram_markdown
 
 LifecycleCallback = Callable[[Application], Coroutine[Any, Any, None]]
 LOGGER = logging.getLogger(__name__)
@@ -144,7 +145,20 @@ class TelegramController:
             fallback_used,
             cls._safe_log_text(text),
         )
-        await message.reply_text(text, reply_markup=reply_markup)
+        rendered_text = render_telegram_markdown(text)
+        try:
+            await message.reply_text(
+                rendered_text,
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML,
+            )
+        except BadRequest as error:
+            LOGGER.warning(
+                "telegram markdown rendering failed update_id=%s; sending plain text: %s",
+                getattr(update, "update_id", None),
+                error,
+            )
+            await message.reply_text(text, reply_markup=reply_markup)
 
     @staticmethod
     @asynccontextmanager
