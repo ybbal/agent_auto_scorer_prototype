@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import re
 from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager, suppress
 from typing import Any
@@ -29,6 +31,13 @@ from auto_value_agent.domain import ActionId, ConsultationResponse, Intent
 from auto_value_agent.service import ConsultationService, NoVehicleSelectedError
 
 LifecycleCallback = Callable[[Application], Coroutine[Any, Any, None]]
+LOGGER = logging.getLogger(__name__)
+
+VIN_PATTERN = re.compile(
+    r"(?<![A-Z0-9])([A-HJ-NPR-Z0-9]{3})[A-HJ-NPR-Z0-9]{10}"
+    r"([A-HJ-NPR-Z0-9]{4})(?![A-Z0-9])",
+    flags=re.IGNORECASE,
+)
 
 INTENT_LABELS = {
     Intent.EXPLAIN: "Почему такая стоимость?",
@@ -103,6 +112,41 @@ class TelegramController:
         )
 
     @staticmethod
+    def _safe_log_text(text: str) -> str:
+        return VIN_PATTERN.sub(r"\1***\2", text)
+
+    @classmethod
+    def _log_request(cls, update: Update, kind: str, text: str) -> None:
+        LOGGER.info(
+            "telegram request update_id=%s kind=%s text=%r",
+            getattr(update, "update_id", None),
+            kind,
+            cls._safe_log_text(text),
+        )
+
+    @classmethod
+    async def _reply_text(
+        cls,
+        update: Update,
+        text: str,
+        reply_markup: InlineKeyboardMarkup | None = None,
+        *,
+        intent: Intent | None = None,
+        fallback_used: bool | None = None,
+    ) -> None:
+        message = update.effective_message
+        if message is None:
+            return
+        LOGGER.info(
+            "telegram response update_id=%s intent=%s fallback_used=%s text=%r",
+            getattr(update, "update_id", None),
+            intent.value if intent is not None else None,
+            fallback_used,
+            cls._safe_log_text(text),
+        )
+        await message.reply_text(text, reply_markup=reply_markup)
+
+    @staticmethod
     @asynccontextmanager
     async def _typing(
         update: Update,
@@ -133,18 +177,18 @@ class TelegramController:
             with suppress(asyncio.CancelledError):
                 await task
 
-    @staticmethod
-    async def _show_car(update: Update, service: ConsultationService) -> None:
+    @classmethod
+    async def _show_car(cls, update: Update, service: ConsultationService) -> None:
         samples = service.list_samples()
         keyboard = [
             [InlineKeyboardButton(sample.label, callback_data=f"sample:{sample.sample_id}")]
             for sample in samples
         ]
-        if update.effective_message is not None:
-            await update.effective_message.reply_text(
-                "Выберите демонстрационный автомобиль:",
-                reply_markup=InlineKeyboardMarkup(keyboard),
-            )
+        await cls._reply_text(
+            update,
+            "Выберите демонстрационный автомобиль:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
 
     @inject
     async def start(
@@ -154,12 +198,13 @@ class TelegramController:
         service: ConsultationService = Provide["consultation_service"],
     ) -> None:
         del context
+        self._log_request(update, "command", "/start")
         await service.session(*self._session_key(update))
-        if update.effective_message is not None:
-            await update.effective_message.reply_text(
-                "Консультант по стоимости автомобиля на связи. Оценка ориентировочная. "
-                "Выберите автомобиль."
-            )
+        await self._reply_text(
+            update,
+            "Консультант по стоимости автомобиля на связи. Оценка ориентировочная. "
+            "Выберите автомобиль.",
+        )
         await self._show_car(update, service)
 
     @inject
@@ -170,15 +215,17 @@ class TelegramController:
         service: ConsultationService = Provide["consultation_service"],
     ) -> None:
         del context
+        self._log_request(update, "command", "/car")
         await self._show_car(update, service)
 
     async def help(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         del context
-        if update.effective_message is not None:
-            await update.effective_message.reply_text(
-                "/car — выбрать автомобиль\n/reset — удалить сессию\n"
-                "После выбора используйте кнопки или задайте вопрос текстом."
-            )
+        self._log_request(update, "command", "/help")
+        await self._reply_text(
+            update,
+            "/car — выбрать автомобиль\n/reset — удалить сессию\n"
+            "После выбора используйте кнопки или задайте вопрос текстом.",
+        )
 
     @inject
     async def reset(
@@ -188,9 +235,9 @@ class TelegramController:
         service: ConsultationService = Provide["consultation_service"],
     ) -> None:
         del context
+        self._log_request(update, "command", "/reset")
         await service.reset(*self._session_key(update))
-        if update.effective_message is not None:
-            await update.effective_message.reply_text("Сессия и история диалога удалены.")
+        await self._reply_text(update, "Сессия и история диалога удалены.")
         await self._show_car(update, service)
 
     @inject
@@ -204,14 +251,15 @@ class TelegramController:
         query = update.callback_query
         if query is None or query.data is None:
             return
+        self._log_request(update, "callback", query.data)
         await query.answer()
         sample_id = query.data.removeprefix("sample:")
         score = await service.select_sample(*self._session_key(update), sample_id)
-        if update.effective_message is not None:
-            await update.effective_message.reply_text(
-                f"Выбран {score.display_name}, VIN {score.masked_vin}.",
-                reply_markup=self._intent_keyboard(),
-            )
+        await self._reply_text(
+            update,
+            f"Выбран {score.display_name}, VIN {score.masked_vin}.",
+            reply_markup=self._intent_keyboard(),
+        )
 
     @inject
     async def on_intent(
@@ -223,6 +271,7 @@ class TelegramController:
         query = update.callback_query
         if query is None or query.data is None:
             return
+        self._log_request(update, "callback", query.data)
         await query.answer()
         intent = Intent(query.data.removeprefix("intent:"))
         try:
@@ -233,29 +282,29 @@ class TelegramController:
                     forced_intent=intent,
                 )
         except NoVehicleSelectedError:
-            if update.effective_message is not None:
-                await update.effective_message.reply_text(
-                    "Сначала выберите автомобиль командой /car."
-                )
+            await self._reply_text(update, "Сначала выберите автомобиль командой /car.")
             return
-        if update.effective_message is not None:
-            await update.effective_message.reply_text(
-                response.text,
-                reply_markup=self._response_keyboard(response) or self._intent_keyboard(),
-            )
+        await self._reply_text(
+            update,
+            response.text,
+            reply_markup=self._response_keyboard(response) or self._intent_keyboard(),
+            intent=response.intent,
+            fallback_used=response.fallback_used,
+        )
 
     async def on_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         del context
         query = update.callback_query
         if query is None or query.data is None:
             return
+        self._log_request(update, "callback", query.data)
         await query.answer()
         action = ActionId(query.data.removeprefix("action:"))
-        if update.effective_message is not None:
-            await update.effective_message.reply_text(
-                ACTION_DEMO_TEXT[action],
-                reply_markup=self._intent_keyboard(),
-            )
+        await self._reply_text(
+            update,
+            ACTION_DEMO_TEXT[action],
+            reply_markup=self._intent_keyboard(),
+        )
 
     @inject
     async def on_text(
@@ -266,6 +315,7 @@ class TelegramController:
     ) -> None:
         if update.effective_message is None or update.effective_message.text is None:
             return
+        self._log_request(update, "text", update.effective_message.text)
         try:
             async with self._typing(update, context):
                 response = await service.consult_selected(
@@ -273,11 +323,14 @@ class TelegramController:
                     update.effective_message.text,
                 )
         except NoVehicleSelectedError:
-            await update.effective_message.reply_text("Сначала выберите автомобиль командой /car.")
+            await self._reply_text(update, "Сначала выберите автомобиль командой /car.")
             return
-        await update.effective_message.reply_text(
+        await self._reply_text(
+            update,
             response.text,
             reply_markup=self._response_keyboard(response) or self._intent_keyboard(),
+            intent=response.intent,
+            fallback_used=response.fallback_used,
         )
 
     @inject

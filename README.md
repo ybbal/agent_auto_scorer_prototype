@@ -61,7 +61,8 @@ uv run auto-value-agent telegram
 Логи одновременно выводятся в терминал и записываются в `var/logs/agent.log`.
 По умолчанию файл ротируется при достижении 10 МБ, хранится до пяти архивов.
 Параметры `LOG_LEVEL`, `LOG_FILE_PATH`, `LOG_MAX_BYTES` и `LOG_BACKUP_COUNT`
-можно переопределить в `.env`.
+можно переопределить в `.env`. Telegram-запросы и ответы пишутся на уровне `INFO`
+с `update_id` для корреляции; Telegram user/chat ID не логируются, полные VIN маскируются.
 
 ## Архитектура
 

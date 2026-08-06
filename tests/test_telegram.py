@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -142,3 +143,38 @@ def test_response_actions_keep_shared_business_ids() -> None:
 
     assert keyboard is not None
     assert keyboard.inline_keyboard[0][0].callback_data == "action:update_accidents"
+
+
+@pytest.mark.asyncio
+async def test_text_request_and_response_are_logged_with_masked_vin(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    controller = TelegramController()
+    full_vin = "WVWZZZ1JZXW000001"
+    response = ConsultationResponse(
+        text=f"Проверен VIN {full_vin}.",
+        score_date="2026-06-30",
+        intent=Intent.UNSUPPORTED,
+    )
+    service = MagicMock()
+    service.consult_selected = AsyncMock(return_value=response)
+    message = SimpleNamespace(
+        text=f"Проверьте VIN {full_vin}",
+        reply_text=AsyncMock(),
+    )
+    update = SimpleNamespace(
+        update_id=123,
+        callback_query=None,
+        effective_message=message,
+        effective_chat=SimpleNamespace(id=10),
+        effective_user=SimpleNamespace(id=20),
+    )
+    context = SimpleNamespace(bot=SimpleNamespace(send_chat_action=AsyncMock()))
+    caplog.set_level(logging.INFO, logger="auto_value_agent.telegram")
+
+    await controller.on_text(update, context, service=service)
+
+    assert "telegram request update_id=123 kind=text" in caplog.text
+    assert "telegram response update_id=123 intent=unsupported" in caplog.text
+    assert full_vin not in caplog.text
+    assert "WVW***0001" in caplog.text
