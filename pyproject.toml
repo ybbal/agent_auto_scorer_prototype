@@ -1,0 +1,56 @@
+[project]
+name = "auto-value-agent"
+version = "0.1.0"
+description = "Prototype vehicle valuation consultant for CLI and Telegram"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "aiosqlite>=0.21,<1",
+    "dependency-injector>=4.49,<5",
+    "langchain>=1,<2",
+    "langchain-gigachat>=0.5,<0.6",
+    "langgraph-checkpoint-sqlite>=3,<4",
+    "pydantic>=2,<3",
+    "pydantic-settings>=2,<3",
+    "python-dotenv>=1,<2",
+    "python-telegram-bot>=22,<23",
+    "rich>=14,<15",
+    "typer>=0.16,<1",
+]
+
+[project.scripts]
+auto-value-agent = "auto_value_agent.__main__:main"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17,<2",
+    "pytest>=8.4,<9",
+    "pytest-asyncio>=1,<2",
+    "ruff>=0.12,<1",
+]
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+addopts = "-ra -m 'not live'"
+asyncio_mode = "auto"
+markers = ["live: requires real external credentials and network access"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+check_untyped_defs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true

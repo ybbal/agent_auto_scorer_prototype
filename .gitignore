@@ -1,0 +1,17 @@
+.env
+.venv/
+.uv-cache/
+.uv-python/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+var/*.db
+var/*.db-*
+var/logs/
+.DS_Store
+.idea/
+~$*.xlsx
