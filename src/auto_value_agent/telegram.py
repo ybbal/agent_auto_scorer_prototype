@@ -116,11 +116,18 @@ class TelegramController:
     def _safe_log_text(text: str) -> str:
         return VIN_PATTERN.sub(r"\1***\2", text)
 
+    @staticmethod
+    def _username(update: Update) -> str | None:
+        user = getattr(update, "effective_user", None)
+        username = getattr(user, "username", None)
+        return f"@{username}" if username else None
+
     @classmethod
     def _log_request(cls, update: Update, kind: str, text: str) -> None:
         LOGGER.info(
-            "telegram request update_id=%s kind=%s text=%r",
+            "telegram request update_id=%s username=%s kind=%s text=%r",
             getattr(update, "update_id", None),
+            cls._username(update),
             kind,
             cls._safe_log_text(text),
         )
@@ -139,8 +146,9 @@ class TelegramController:
         if message is None:
             return
         LOGGER.info(
-            "telegram response update_id=%s intent=%s fallback_used=%s text=%r",
+            "telegram response update_id=%s username=%s intent=%s fallback_used=%s text=%r",
             getattr(update, "update_id", None),
+            cls._username(update),
             intent.value if intent is not None else None,
             fallback_used,
             cls._safe_log_text(text),
@@ -154,8 +162,10 @@ class TelegramController:
             )
         except BadRequest as error:
             LOGGER.warning(
-                "telegram markdown rendering failed update_id=%s; sending plain text: %s",
+                "telegram markdown rendering failed update_id=%s username=%s; "
+                "sending plain text: %s",
                 getattr(update, "update_id", None),
+                cls._username(update),
                 error,
             )
             await message.reply_text(text, reply_markup=reply_markup)

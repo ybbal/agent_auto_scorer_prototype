@@ -74,7 +74,7 @@ async def test_reset_and_action_callbacks(settings: Settings) -> None:
         callback_query=None,
         effective_message=message,
         effective_chat=SimpleNamespace(id=10),
-        effective_user=SimpleNamespace(id=20),
+        effective_user=SimpleNamespace(id=20, username="test_user"),
     )
 
     await controller.reset(reset_update, object(), service=service)
@@ -167,14 +167,18 @@ async def test_text_request_and_response_are_logged_with_masked_vin(
         callback_query=None,
         effective_message=message,
         effective_chat=SimpleNamespace(id=10),
-        effective_user=SimpleNamespace(id=20),
+        effective_user=SimpleNamespace(id=20, username="test_user"),
     )
     context = SimpleNamespace(bot=SimpleNamespace(send_chat_action=AsyncMock()))
     caplog.set_level(logging.INFO, logger="auto_value_agent.telegram")
 
     await controller.on_text(update, context, service=service)
 
-    assert "telegram request update_id=123 kind=text" in caplog.text
-    assert "telegram response update_id=123 intent=unsupported" in caplog.text
+    assert "telegram request update_id=123 username=@test_user kind=text" in caplog.text
+    assert (
+        "telegram response update_id=123 username=@test_user intent=unsupported"
+        in caplog.text
+    )
+    assert "user_id=" not in caplog.text
     assert full_vin not in caplog.text
     assert "WVW***0001" in caplog.text

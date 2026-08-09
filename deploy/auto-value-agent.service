@@ -11,6 +11,7 @@ WorkingDirectory=/opt/auto-value-agent
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=STATE_DB_PATH=/var/lib/auto-value-agent/agent.db
 Environment=LOG_FILE_PATH=/var/log/auto-value-agent/agent.log
+Environment=LOG_TIMEZONE=Europe/Moscow
 Environment=SCORE_CSV_PATH=/opt/auto-value-agent/resources/sample_scores_table_auto_349653.csv
 Environment=FEATURE_MAPPING_PATH=/opt/auto-value-agent/resources/feature_mappings.json
 ExecStart=/opt/auto-value-agent/.venv/bin/auto-value-agent telegram

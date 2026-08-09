@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -25,7 +26,9 @@ def test_rotating_file_handler_writes_utf8_log(tmp_path: Path) -> None:
     try:
         logger.info("Проверка файлового журнала")
         file_handler.flush()
-        assert "Проверка файлового журнала" in log_path.read_text(encoding="utf-8")
+        log_text = log_path.read_text(encoding="utf-8")
+        assert "Проверка файлового журнала" in log_text
+        assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \+0300", log_text)
         assert file_handler.maxBytes == 2048
         assert file_handler.backupCount == 2
     finally:

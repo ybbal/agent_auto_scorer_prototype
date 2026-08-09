@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     state_db_path: Path = PROJECT_ROOT / "var" / "agent.db"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     log_file_path: Path = PROJECT_ROOT / "var" / "logs" / "agent.log"
+    log_timezone: str = Field(default="Europe/Moscow", min_length=1)
     log_max_bytes: int = Field(default=10 * 1024 * 1024, ge=1024)
     log_backup_count: int = Field(default=5, ge=1, le=100)
     score_csv_path: Path = PROJECT_ROOT / "resources" / "sample_scores_table_auto_349653.csv"
