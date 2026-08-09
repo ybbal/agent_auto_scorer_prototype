@@ -83,6 +83,7 @@ class CsvScoreRepository:
             masked_vin=mask_vin(payload.vin),
             brand_name=brand_name,
             model_name=model_name,
+            engine_model_name=self._mappings.engine_model(payload.engine_model),
             body_style_name=self._mappings.body_style(payload.body_style),
             body_color_name=self._mappings.body_color(payload.body_color),
             drive_type_name=self._mappings.drive_type(payload.drive_type),

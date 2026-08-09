@@ -10,7 +10,7 @@ from langchain_core.runnables import RunnableConfig
 
 from auto_value_agent.agent import ConsultationAgent, build_compiled_agent
 from auto_value_agent.config import Settings
-from auto_value_agent.domain import ActionId, AgentReplyDraft, Intent
+from auto_value_agent.domain import AgentReplyDraft, Intent
 from auto_value_agent.explanation import ExplanationPolicy
 from auto_value_agent.mappings import FeatureMappingRepository
 from auto_value_agent.repositories import CsvScoreRepository
@@ -51,7 +51,7 @@ async def test_valid_model_reply_is_used(settings: Settings, tmp_path: Path) -> 
     draft = AgentReplyDraft(
         intent=Intent.EXPLAIN,
         text="Текущая оценка — примерно 1 318 000 ₽.",
-        action_ids=[ActionId.UPDATE_MILEAGE],
+        action_ids=[],
     )
     service, store = await build_service(settings, tmp_path, draft)
     try:
@@ -61,11 +61,7 @@ async def test_valid_model_reply_is_used(settings: Settings, tmp_path: Path) -> 
         )
         assert response.fallback_used is False
         assert response.text == draft.text
-        assert [action.id for action in response.actions] == [
-            ActionId.UPDATE_MILEAGE,
-            ActionId.UPDATE_CONDITION,
-            ActionId.UPDATE_ACCIDENTS,
-        ]
+        assert response.actions == []
         session = await service.session("test", "user")
         config = RunnableConfig(configurable={"thread_id": session.thread_id})
         checkpoint = await store.checkpointer.aget_tuple(config)
@@ -147,10 +143,10 @@ async def test_model_failure_and_missing_selection(settings: Settings, tmp_path:
 @pytest.mark.parametrize(
     ("intent", "expected_text", "expected_actions"),
     [
-        (Intent.EXPLAIN, "Повышающие модельные факторы", 3),
+        (Intent.EXPLAIN, "Повышающие модельные факторы", 0),
         (Intent.VEHICLE_FACTS, "Данные, использованные в оценке", 0),
-        (Intent.DISAGREE, "может отличаться от ваших ожиданий", 3),
-        (Intent.UPDATE_DATA, "изменение данных не выполняется", 3),
+        (Intent.DISAGREE, "может отличаться от ваших ожиданий", 0),
+        (Intent.UPDATE_DATA, "первой версии пока недоступны", 0),
         (Intent.PRESERVE_VALUE, "GAP-страхование", 0),
         (Intent.UNSUPPORTED, "Не удалось сформировать свободный ответ", 0),
     ],

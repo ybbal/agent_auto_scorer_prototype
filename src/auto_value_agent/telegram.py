@@ -27,7 +27,7 @@ from telegram.ext import (
     filters,
 )
 
-from auto_value_agent.domain import ActionId, ConsultationResponse, Intent
+from auto_value_agent.domain import Intent
 from auto_value_agent.service import ConsultationService, NoVehicleSelectedError
 from auto_value_agent.telegram_markdown import render_telegram_markdown
 
@@ -44,7 +44,6 @@ INTENT_LABELS = {
     Intent.EXPLAIN: "Почему такая стоимость?",
     Intent.VEHICLE_FACTS: "Какие данные использованы?",
     Intent.DISAGREE: "Не согласен с оценкой",
-    Intent.UPDATE_DATA: "Как обновить данные?",
     Intent.PRESERVE_VALUE: "Как сохранить стоимость?",
 }
 
@@ -54,16 +53,6 @@ INTENT_MESSAGES = {
     Intent.DISAGREE: "Не согласен с оценкой",
     Intent.UPDATE_DATA: "Как обновить данные об автомобиле?",
     Intent.PRESERVE_VALUE: "Как не потерять в стоимости автомобиля?",
-}
-
-ACTION_DEMO_TEXT = {
-    ActionId.UPDATE_MILEAGE: "Демо обновления пробега запущено. Реальные данные не изменены.",
-    ActionId.UPDATE_CONDITION: (
-        "Демо уточнения технического состояния запущено. Реальные данные не изменены."
-    ),
-    ActionId.UPDATE_ACCIDENTS: (
-        "Демо обновления сведений о ДТП запущено. Реальные данные не изменены."
-    ),
 }
 
 BOT_COMMANDS = (
@@ -98,17 +87,6 @@ class TelegramController:
             [
                 [InlineKeyboardButton(label, callback_data=f"intent:{intent.value}")]
                 for intent, label in INTENT_LABELS.items()
-            ]
-        )
-
-    @staticmethod
-    def _response_keyboard(response: ConsultationResponse) -> InlineKeyboardMarkup | None:
-        if not response.actions:
-            return None
-        return InlineKeyboardMarkup(
-            [
-                [InlineKeyboardButton(action.label, callback_data=f"action:{action.id.value}")]
-                for action in response.actions
             ]
         )
 
@@ -311,23 +289,9 @@ class TelegramController:
         await self._reply_text(
             update,
             response.text,
-            reply_markup=self._response_keyboard(response) or self._intent_keyboard(),
+            reply_markup=self._intent_keyboard(),
             intent=response.intent,
             fallback_used=response.fallback_used,
-        )
-
-    async def on_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        del context
-        query = update.callback_query
-        if query is None or query.data is None:
-            return
-        self._log_request(update, "callback", query.data)
-        await query.answer()
-        action = ActionId(query.data.removeprefix("action:"))
-        await self._reply_text(
-            update,
-            ACTION_DEMO_TEXT[action],
-            reply_markup=self._intent_keyboard(),
         )
 
     @inject
@@ -352,7 +316,7 @@ class TelegramController:
         await self._reply_text(
             update,
             response.text,
-            reply_markup=self._response_keyboard(response) or self._intent_keyboard(),
+            reply_markup=self._intent_keyboard(),
             intent=response.intent,
             fallback_used=response.fallback_used,
         )
@@ -388,7 +352,6 @@ class TelegramController:
         application.add_handler(CommandHandler("reset", self.reset))
         application.add_handler(CallbackQueryHandler(self.on_sample, pattern=r"^sample:"))
         application.add_handler(CallbackQueryHandler(self.on_intent, pattern=r"^intent:"))
-        application.add_handler(CallbackQueryHandler(self.on_action, pattern=r"^action:"))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_text))
         return application
 

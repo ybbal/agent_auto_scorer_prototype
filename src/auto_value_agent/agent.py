@@ -25,9 +25,13 @@ SYSTEM_PROMPT = """Вы — русскоязычный консультант п
 C тобой разговаривает клиент Сбербанка. Обращайтесь к нему на вы.
 
 Правила:
-- В вопросах о выбранном автомобиле и его оценке используйте только факты из переданного
-  JSON-контекста. Не добавляйте сведения об автомобиле.
-- Не называйте техническое состояние: в текущих данных его нет.
+- Консультируйте по стоимости выбранного автомобиля только на основе марки, модели, года
+  выпуска, пробега, мощности двигателя и модели двигателя из JSON-контекста.
+- Всегда называйте пробег приблизительным. Не представляйте его как точное значение.
+- Не упоминайте VIN, ДТП, регистрационные действия, владельцев, ПТС, такси, техническое
+  состояние, объём двигателя, кузов, цвет или привод. Если эти сведения встречаются в старой
+  истории диалога, игнорируйте их и не повторяйте.
+- Не добавляйте сведения о выбранном автомобиле, которых нет в текущем JSON-контексте.
 - Не называйте базовую цену модели и не утверждайте, что оценка сравнивается с аналогами.
 - В ответах об оценке выбранного автомобиля денежные суммы копируйте из контекста без изменения.
 - Для explain, disagree и vehicle_facts обязательно укажите текущую оценку из price_text.
@@ -36,7 +40,8 @@ C тобой разговаривает клиент Сбербанка. Обр�
   местоимения продолжайте в смысле предыдущих сообщений.
 - Если forced_intent задан, выполните выбранный клиентом сценарий: explain — объяснение
   оценки, vehicle_facts — использованные данные, disagree — работа с несогласием,
-  update_data — обновление данных, preserve_value — советы по сохранению стоимости.
+  preserve_value — советы по сохранению стоимости. Для update_data сообщите, что уточнение
+  и обновление данных в первой версии недоступны.
 - На остальные вопросы отвечайте свободно, используя общие знания, но не выдавайте ответ за
   персонализированный вывод о выбранном автомобиле.
 - Пишите уважительно, на «вы».
@@ -158,10 +163,9 @@ class ConsultationAgent:
         allowed_actions = {action.id for action in context.allowed_actions}
         if any(action_id not in allowed_actions for action_id in draft.action_ids):
             raise UnsafeModelReplyError("Model returned an unknown action", draft.intent)
-        intents_with_actions = {Intent.EXPLAIN, Intent.DISAGREE, Intent.UPDATE_DATA}
-        if draft.intent not in intents_with_actions and draft.action_ids:
+        if draft.action_ids:
             raise UnsafeModelReplyError(
-                "Model returned actions for an intent that has no actions",
+                "Model returned actions, but actions are disabled",
                 draft.intent,
             )
 
@@ -213,16 +217,10 @@ class ConsultationAgent:
             raise UnsafeModelReplyError("Agent returned an empty response", forced_intent)
 
         intent = forced_intent or Intent.UNSUPPORTED
-        intents_with_actions = {Intent.EXPLAIN, Intent.DISAGREE, Intent.UPDATE_DATA}
-        action_ids = (
-            [action.id for action in context.allowed_actions]
-            if intent in intents_with_actions
-            else []
-        )
         draft = AgentReplyDraft(
             intent=intent,
             text=str(response.text).strip(),
-            action_ids=action_ids,
+            action_ids=[],
         )
         self._validate(draft, context, forced_intent)
         return draft

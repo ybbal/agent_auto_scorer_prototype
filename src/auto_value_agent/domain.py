@@ -74,6 +74,7 @@ class VehicleScore(BaseModel):
     masked_vin: str
     brand_name: str
     model_name: str
+    engine_model_name: str | None = None
     body_style_name: str | None = None
     body_color_name: str | None = None
     drive_type_name: str | None = None
@@ -135,7 +136,7 @@ class ExplanationContext(BaseModel):
     warnings: tuple[str, ...]
 
     def prompt_payload(self) -> dict[str, Any]:
-        return self.model_dump(mode="json", exclude={"price", "warnings"})
+        return self.model_dump(mode="json", exclude={"price", "warnings", "masked_vin"})
 
 
 class AgentReplyDraft(BaseModel):

@@ -90,7 +90,7 @@ def test_telegram_application_builds_without_network() -> None:
         post_shutdown=lifecycle_callback,
     )
     assert application.bot.token == "123456:TEST_TOKEN"
-    assert sum(len(group) for group in application.handlers.values()) == 8
+    assert sum(len(group) for group in application.handlers.values()) == 7
     assert application.post_init is lifecycle_callback
     assert application.post_shutdown is lifecycle_callback
 

@@ -6,7 +6,6 @@ from dependency_injector.wiring import Provide, inject
 
 from auto_value_agent.domain import (
     Action,
-    ActionId,
     ExplanationContext,
     FactorExplanation,
     Intent,
@@ -14,36 +13,16 @@ from auto_value_agent.domain import (
 )
 
 FEATURES = {
+    "brand": ("Марка", "shap_brand"),
+    "model": ("Модель", "shap_model"),
     "year_production": ("Год выпуска", "shap_year_production"),
     "engine_power": ("Мощность двигателя", "shap_engine_power"),
-    "max_recorded_mileage": ("Зафиксированный пробег", "shap_max_recorded_mileage"),
-    "market_prices_accidents_count": (
-        "ДТП в рыночных данных",
-        "shap_market_prices_accidents_count",
+    "max_recorded_mileage": (
+        "Пробег (приблизительно)",
+        "shap_max_recorded_mileage",
     ),
-    "registration_actions_count": (
-        "Регистрационные действия",
-        "shap_registration_actions_count",
-    ),
-    "engine_volume": ("Объём двигателя", "shap_engine_volume"),
-    "has_pts_duplicate": ("Дубликат ПТС", "shap_has_pts_duplicate"),
-    "body_style": ("Тип кузова", "shap_body_style"),
-    "drive_type": ("Тип привода", "shap_drive_type"),
-    "used_in_taxi": ("Использование в такси", "shap_used_in_taxi"),
+    "engine_model": ("Модель двигателя", "shap_engine_model"),
 }
-
-RISK_FEATURES = {
-    "market_prices_accidents_count",
-    "registration_actions_count",
-    "has_pts_duplicate",
-    "used_in_taxi",
-}
-
-UPDATE_ACTIONS = [
-    Action(id=ActionId.UPDATE_MILEAGE, label="Уточнить пробег"),
-    Action(id=ActionId.UPDATE_CONDITION, label="Уточнить техническое состояние"),
-    Action(id=ActionId.UPDATE_ACCIDENTS, label="Обновить информацию о ДТП"),
-]
 
 PRESERVE_VALUE_ADVICE = """Полностью остановить снижение стоимости автомобиля нельзя, \
 но его можно замедлить:
@@ -80,40 +59,21 @@ class ExplanationPolicy:
         self._max_factors = max_factors_per_direction
 
     @staticmethod
-    def _raw_value(score: VehicleScore, feature: str) -> str:
+    def _raw_value(score: VehicleScore, feature: str) -> str | None:
         payload = score.payload
+        if feature == "brand":
+            return score.brand_name
+        if feature == "model":
+            return score.model_name
         if feature == "year_production":
             return str(payload.year_production)
         if feature == "engine_power":
             return f"{format_integer(payload.engine_power)} л.с."
         if feature == "max_recorded_mileage":
-            return f"{format_integer(payload.max_recorded_mileage)} км"
-        if feature == "market_prices_accidents_count":
-            return str(payload.market_prices_accidents_count)
-        if feature == "registration_actions_count":
-            return str(payload.registration_actions_count)
-        if feature == "engine_volume":
-            return f"{format_integer(payload.engine_volume)} см³"
-        if feature == "has_pts_duplicate":
-            return "есть" if payload.has_pts_duplicate else "нет"
-        if feature == "body_style":
-            return score.body_style_name or f"код {payload.body_style}"
-        if feature == "drive_type":
-            return score.drive_type_name or f"код {payload.drive_type}"
-        if feature == "used_in_taxi":
-            return "да" if payload.used_in_taxi else "нет"
+            return f"примерно {format_integer(payload.max_recorded_mileage)} км"
+        if feature == "engine_model":
+            return score.engine_model_name
         raise KeyError(feature)
-
-    @staticmethod
-    def _risk_is_present(score: VehicleScore, feature: str) -> bool:
-        payload = score.payload
-        values = {
-            "market_prices_accidents_count": payload.market_prices_accidents_count,
-            "registration_actions_count": payload.registration_actions_count,
-            "has_pts_duplicate": payload.has_pts_duplicate,
-            "used_in_taxi": payload.used_in_taxi,
-        }
-        return values[feature] > 0
 
     def factors(
         self, score: VehicleScore
@@ -121,15 +81,8 @@ class ExplanationPolicy:
         candidates: list[FactorExplanation] = []
         for feature, (label, shap_field) in FEATURES.items():
             contribution = getattr(score.payload, shap_field)
-            unsafe_positive_risk = (
-                feature in RISK_FEATURES
-                and contribution > 0
-                and self._risk_is_present(score, feature)
-            )
-            if unsafe_positive_risk:
-                continue
             raw_value = self._raw_value(score, feature)
-            if raw_value.startswith("код "):
+            if raw_value is None:
                 continue
             candidates.append(
                 FactorExplanation(
@@ -155,27 +108,13 @@ class ExplanationPolicy:
         positives, negatives = self.factors(score)
         payload = score.payload
         facts = [
-            f"Автомобиль: {score.display_name}",
-            f"VIN: {score.masked_vin}",
-            (
-                f"Оценка на {payload.report_dt:%d.%m.%Y}: "
-                f"примерно {format_rubles(payload.market_price)}"
-            ),
-            (
-                "Максимальный зафиксированный пробег: "
-                f"{format_integer(payload.max_recorded_mileage)} км"
-            ),
+            f"Марка: {score.brand_name}",
+            f"Модель: {score.model_name}",
+            f"Год выпуска: {payload.year_production}",
+            f"Пробег (приблизительно): {format_integer(payload.max_recorded_mileage)} км",
             f"Мощность двигателя: {format_integer(payload.engine_power)} л.с.",
-            f"Объём двигателя: {format_integer(payload.engine_volume)} см³",
-            f"ДТП в рыночных данных: {payload.market_prices_accidents_count}",
-            f"Регистрационные действия: {payload.registration_actions_count}",
-            f"Дубликат ПТС: {'есть' if payload.has_pts_duplicate else 'нет'}",
-            f"Использование в такси: {'да' if payload.used_in_taxi else 'нет'}",
+            f"Модель двигателя: {score.engine_model_name or 'не указана'}",
         ]
-        if score.body_style_name:
-            facts.append(f"Тип кузова: {score.body_style_name}")
-        if score.drive_type_name:
-            facts.append(f"Привод: {score.drive_type_name}")
         return ExplanationContext(
             display_name=score.display_name,
             masked_vin=score.masked_vin,
@@ -185,27 +124,25 @@ class ExplanationPolicy:
             positive_factors=positives,
             negative_factors=negatives,
             vehicle_facts=facts,
-            allowed_actions=UPDATE_ACTIONS,
+            allowed_actions=[],
             warnings=score.warnings,
         )
 
     @staticmethod
     def actions_for(intent: Intent) -> list[Action]:
-        if intent in {Intent.EXPLAIN, Intent.DISAGREE, Intent.UPDATE_DATA}:
-            return list(UPDATE_ACTIONS)
+        del intent
         return []
 
     def fallback_text(self, intent: Intent, context: ExplanationContext) -> str:
         if intent is Intent.VEHICLE_FACTS:
-            return "Данные, использованные в оценке:\n" + "\n".join(
-                f"• {fact}" for fact in context.vehicle_facts
+            facts = "\n".join(f"• {fact}" for fact in context.vehicle_facts)
+            return (
+                f"Текущая оценка {context.display_name} на "
+                f"{context.score_date:%d.%m.%Y} — {context.price_text}.\n\n"
+                f"Данные, использованные в оценке:\n{facts}"
             )
         if intent is Intent.UPDATE_DATA:
-            return (
-                "В оценке использованы данные об автомобиле, доступные на дату расчёта. "
-                "В прототипе изменение данных не выполняется, но можно запустить "
-                "демонстрацию обновления пробега, технического состояния или сведений о ДТП."
-            )
+            return "Уточнение и обновление данных в первой версии пока недоступны."
         if intent is Intent.PRESERVE_VALUE:
             return PRESERVE_VALUE_ADVICE
         if intent is Intent.UNSUPPORTED:
@@ -237,6 +174,6 @@ class ExplanationPolicy:
             )
         lines.append(
             "\nВклады показывают поведение модели относительно её базового уровня и не являются "
-            "доказательством причинной связи. Техническое состояние в текущей выгрузке отсутствует."
+            "доказательством причинной связи. Пробег в оценке является приблизительным."
         )
         return "\n".join(lines)

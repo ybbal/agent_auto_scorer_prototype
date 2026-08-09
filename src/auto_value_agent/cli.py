@@ -4,15 +4,14 @@ from dependency_injector.wiring import Provide, inject
 from rich.console import Console
 from rich.table import Table
 
-from auto_value_agent.domain import ActionId, Intent
+from auto_value_agent.domain import Intent
 from auto_value_agent.service import ConsultationService, NoVehicleSelectedError
 
 SHORTCUTS = {
     "1": (Intent.EXPLAIN, "Почему такая стоимость автомобиля?"),
     "2": (Intent.VEHICLE_FACTS, "Какие данные использованы в оценке?"),
     "3": (Intent.DISAGREE, "Не согласен с оценкой"),
-    "4": (Intent.UPDATE_DATA, "Как обновить данные об автомобиле?"),
-    "5": (Intent.PRESERVE_VALUE, "Как не потерять в стоимости автомобиля?"),
+    "4": (Intent.PRESERVE_VALUE, "Как не потерять в стоимости автомобиля?"),
 }
 
 HELP_TEXT = """Команды:
@@ -21,7 +20,7 @@ HELP_TEXT = """Команды:
   /help   показать справку
   /exit   выйти
 
-Сценарии: 1 — объяснение, 2 — данные, 3 — несогласие, 4 — обновление, 5 — советы.
+Сценарии: 1 — объяснение, 2 — данные, 3 — несогласие, 4 — советы.
 Любой другой текст отправляется в GigaChat как свободный вопрос."""
 
 
@@ -86,17 +85,6 @@ class CliController:
                 console.print("Сессия удалена. Выберите автомобиль заново.")
                 await self._choose_vehicle()
                 continue
-            if message.startswith("/action "):
-                action_id = message.removeprefix("/action ").strip()
-                if action_id in {item.value for item in ActionId}:
-                    console.print(
-                        f"Демо: действие «{action_id}» принято, "
-                        "реальные данные не изменены."
-                    )
-                else:
-                    console.print("Неизвестное демо-действие.", style="yellow")
-                continue
-
             forced_intent, user_message = SHORTCUTS.get(message, (None, message))
             try:
                 response = await service.consult_selected(
@@ -108,5 +96,3 @@ class CliController:
                 await self._choose_vehicle()
                 continue
             console.print(f"\n[bold green]Консультант[/bold green]: {response.text}")
-            for action in response.actions:
-                console.print(f"  • {action.label}: /action {action.id.value}")

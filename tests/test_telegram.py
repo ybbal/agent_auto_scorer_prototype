@@ -8,10 +8,10 @@ import pytest
 from conftest import FixedClock
 
 from auto_value_agent.config import Settings
-from auto_value_agent.domain import Action, ActionId, ConsultationResponse, Intent
+from auto_value_agent.domain import ConsultationResponse, Intent
 from auto_value_agent.mappings import FeatureMappingRepository
 from auto_value_agent.repositories import CsvScoreRepository
-from auto_value_agent.telegram import ACTION_DEMO_TEXT, BOT_COMMANDS, TelegramController
+from auto_value_agent.telegram import BOT_COMMANDS, TelegramController
 
 
 def repository(settings: Settings) -> CsvScoreRepository:
@@ -64,7 +64,7 @@ async def test_sample_callback_selects_vehicle(settings: Settings) -> None:
 
 
 @pytest.mark.asyncio
-async def test_reset_and_action_callbacks(settings: Settings) -> None:
+async def test_reset_callback(settings: Settings) -> None:
     controller = TelegramController()
     service = MagicMock()
     service.reset = AsyncMock()
@@ -81,23 +81,6 @@ async def test_reset_and_action_callbacks(settings: Settings) -> None:
 
     service.reset.assert_awaited_once_with("telegram", "10:20")
     assert message.reply_text.await_count == 2
-
-    query = SimpleNamespace(
-        data="action:update_mileage",
-        answer=AsyncMock(),
-        edit_message_text=AsyncMock(),
-    )
-    action_message = SimpleNamespace(reply_text=AsyncMock())
-    action_update = SimpleNamespace(
-        callback_query=query,
-        effective_message=action_message,
-    )
-    await controller.on_action(action_update, object())
-    query.edit_message_text.assert_not_awaited()
-    assert (
-        action_message.reply_text.await_args.args[0]
-        == ACTION_DEMO_TEXT[ActionId.UPDATE_MILEAGE]
-    )
 
 
 @pytest.mark.asyncio
@@ -132,17 +115,18 @@ async def test_intent_callback_replies_below_with_typing_action() -> None:
     assert message.reply_text.await_args.args[0] == "Новый ответ"
 
 
-def test_response_actions_keep_shared_business_ids() -> None:
-    response = ConsultationResponse(
-        text="Ответ",
-        actions=[Action(id=ActionId.UPDATE_ACCIDENTS, label="Обновить информацию о ДТП")],
-        score_date="2026-06-30",
-        intent=Intent.UPDATE_DATA,
-    )
-    keyboard = TelegramController._response_keyboard(response)
+def test_intent_keyboard_has_no_update_or_clarification_buttons() -> None:
+    keyboard = TelegramController._intent_keyboard()
+    buttons = [button for row in keyboard.inline_keyboard for button in row]
 
-    assert keyboard is not None
-    assert keyboard.inline_keyboard[0][0].callback_data == "action:update_accidents"
+    assert [button.callback_data for button in buttons] == [
+        "intent:explain",
+        "intent:vehicle_facts",
+        "intent:disagree",
+        "intent:preserve_value",
+    ]
+    assert not any("обнов" in button.text.lower() for button in buttons)
+    assert not any("уточ" in button.text.lower() for button in buttons)
 
 
 @pytest.mark.asyncio

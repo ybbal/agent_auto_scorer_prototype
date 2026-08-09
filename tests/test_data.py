@@ -51,6 +51,7 @@ def test_mapping_and_selected_score(settings: Settings) -> None:
 
     assert score.brand_name == "MITSUBISHI"
     assert score.model_name == "ASX"
+    assert score.engine_model_name == "4B10"
     assert score.masked_vin == "JMB***3212"
     assert "baseline_mismatch" in score.warnings
     assert score.body_style_name == "Универсал"

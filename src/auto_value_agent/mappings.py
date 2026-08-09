@@ -42,6 +42,9 @@ class FeatureMappingRepository:
                 return name
         return None
 
+    def engine_model(self, code: int) -> str | None:
+        return self._decode_list(self._data["engine_model"], code)
+
     def body_style(self, code: int) -> str | None:
         return self._decode_list(self._data["kuzov"], code)
 
@@ -50,4 +53,3 @@ class FeatureMappingRepository:
 
     def drive_type(self, code: int) -> str | None:
         return self._decode_list(self._data["privod"], code)
-
