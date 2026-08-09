@@ -122,9 +122,9 @@ def test_intent_keyboard_has_no_update_or_clarification_buttons() -> None:
     assert [button.callback_data for button in buttons] == [
         "intent:explain",
         "intent:vehicle_facts",
-        "intent:disagree",
         "intent:preserve_value",
     ]
+    assert not any("не согласен" in button.text.lower() for button in buttons)
     assert not any("обнов" in button.text.lower() for button in buttons)
     assert not any("уточ" in button.text.lower() for button in buttons)
 

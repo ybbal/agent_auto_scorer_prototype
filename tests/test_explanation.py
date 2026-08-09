@@ -6,7 +6,12 @@ from conftest import FixedClock
 
 from auto_value_agent.config import Settings
 from auto_value_agent.domain import Intent
-from auto_value_agent.explanation import FEATURES, ExplanationPolicy, format_rubles
+from auto_value_agent.explanation import (
+    FEATURES,
+    ExplanationPolicy,
+    format_approximate_mileage,
+    format_rubles,
+)
 from auto_value_agent.mappings import FeatureMappingRepository
 from auto_value_agent.repositories import CsvScoreRepository
 
@@ -38,6 +43,8 @@ def test_rounding_and_factor_whitelist(settings: Settings) -> None:
     }
     assert context.allowed_actions == []
     assert format_rubles(Decimal("1318172.4")) == "1 318 000 ₽"
+    assert format_approximate_mileage(Decimal("48340")) == "примерно 48 000 км"
+    assert format_approximate_mileage(Decimal("48500")) == "примерно 49 000 км"
 
 
 def test_agent_context_contains_only_first_version_vehicle_attributes(
@@ -51,7 +58,7 @@ def test_agent_context_contains_only_first_version_vehicle_attributes(
         "Марка: MITSUBISHI",
         "Модель: ASX",
         "Год выпуска: 2014",
-        "Пробег (приблизительно): 150 099 км",
+        "Пробег: примерно 150 000 км",
         "Мощность двигателя: 150 л.с.",
         "Модель двигателя: 4B10",
     ]
@@ -68,6 +75,7 @@ def test_agent_context_contains_only_first_version_vehicle_attributes(
         if factor.feature == "max_recorded_mileage"
     )
     assert mileage_factor.raw_value.startswith("примерно ")
+    assert mileage_factor.raw_value == "примерно 150 000 км"
 
 
 def test_fallbacks_are_grounded(settings: Settings) -> None:

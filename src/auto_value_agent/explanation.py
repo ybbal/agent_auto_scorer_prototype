@@ -50,6 +50,10 @@ def format_rubles(value: Decimal, *, signed: bool = False) -> str:
     return f"{prefix}{format_integer(abs(rounded))} ₽"
 
 
+def format_approximate_mileage(value: Decimal) -> str:
+    return f"примерно {format_integer(round_thousand(value))} км"
+
+
 class ExplanationPolicy:
     @inject
     def __init__(
@@ -70,7 +74,7 @@ class ExplanationPolicy:
         if feature == "engine_power":
             return f"{format_integer(payload.engine_power)} л.с."
         if feature == "max_recorded_mileage":
-            return f"примерно {format_integer(payload.max_recorded_mileage)} км"
+            return format_approximate_mileage(payload.max_recorded_mileage)
         if feature == "engine_model":
             return score.engine_model_name
         raise KeyError(feature)
@@ -111,7 +115,7 @@ class ExplanationPolicy:
             f"Марка: {score.brand_name}",
             f"Модель: {score.model_name}",
             f"Год выпуска: {payload.year_production}",
-            f"Пробег (приблизительно): {format_integer(payload.max_recorded_mileage)} км",
+            f"Пробег: {format_approximate_mileage(payload.max_recorded_mileage)}",
             f"Мощность двигателя: {format_integer(payload.engine_power)} л.с.",
             f"Модель двигателя: {score.engine_model_name or 'не указана'}",
         ]

@@ -43,7 +43,6 @@ VIN_PATTERN = re.compile(
 INTENT_LABELS = {
     Intent.EXPLAIN: "Почему такая стоимость?",
     Intent.VEHICLE_FACTS: "Какие данные использованы?",
-    Intent.DISAGREE: "Не согласен с оценкой",
     Intent.PRESERVE_VALUE: "Как сохранить стоимость?",
 }
 
